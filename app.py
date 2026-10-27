@@ -38,13 +38,16 @@ def _load_default():
 if "specimens" not in st.session_state:
     sp, me, cl = _load_default()
     st.session_state.update(specimens=sp, measurements=me, claims=cl, dataset_version=1, uploaded_name=None)
+if "mass" not in st.session_state:
+    st.session_state.mass = sc.load_mass()
 
 specimens: pd.DataFrame = st.session_state.specimens
+mass: pd.DataFrame = st.session_state.mass
 meas: pd.DataFrame = st.session_state.measurements
 claims: pd.DataFrame = st.session_state.claims
 report = sc.validate(meas, specimens)
 clean = report.clean_rows(meas)
-summary = sc.summarize(clean, specimens)          # 기본 세션 (발표 기준 8/26)
+summary = sc.summarize(clean, specimens, mass=mass)   # 기본 세션 (팀 확정 통합본)
 kpi = summary["kpi"]
 
 
@@ -126,7 +129,10 @@ if page == "홈":
     mc = kpi.get("max_cycles", 200)
     c2.metric(f"습윤 정적 μ (0 → {mc}회 마모)", f"{kpi.get('mu_wet_0', '—')} → {kpi.get('mu_wet_max', '—')}", "자가재생: 마모 후 상승")
     c3.metric(f"건조 정적 μ (0 → {mc}회 마모)", f"{kpi.get('mu_dry_0', '—')} → {kpi.get('mu_dry_max', '—')}")
-    st.caption(f"{summary['session']} 세션 · 경사판 미끄럼 시작각 θ에서 μ = tanθ로 산출한 정적 마찰계수. 동적 마찰계수(DCOF)는 측정 중입니다.")
+    if "dcof_wet_max" in kpi:
+        st.caption(f"{summary['session']} 세션 · μ는 경사판 정적 마찰계수(tanθ), 습윤 DCOF(마찰시험기) {kpi['dcof_wet_max']}")
+    else:
+        st.caption(f"{summary['session']} 세션 · 경사판 미끄럼 시작각 θ에서 μ = tanθ로 산출한 정적 마찰계수 (3회 반복 평균). 동적 마찰계수(DCOF)는 측정 중입니다.")
     st.divider()
     st.subheader("SoleFit 주요 기능")
     k1, k2, k3 = st.columns(3)
@@ -219,7 +225,7 @@ elif page == "② 기존 실험 결과":
 
     ses_list = summary["sessions"]
     ses = st.selectbox("실험 세션", ses_list, index=ses_list.index(summary["session"]) if summary["session"] in ses_list else 0)
-    ssum = sc.summarize(clean, specimens, ses)
+    ssum = sc.summarize(clean, specimens, ses, mass=mass)
     series, mu, ca = ssum["series"], ssum["mu"], ssum["contact_angle"]
 
     g1, g2 = st.columns(2)
@@ -267,6 +273,34 @@ elif page == "② 기존 실험 결과":
         show["비교 기준"] = show.apply(lambda r: f"미코팅 {r['baseline_cycles']}회" + ("" if r["same_cycles"] else " ⚠️ 조건 다름"), axis=1)
         st.dataframe(show.rename(columns={"condition": "조건", "cycles": "코팅 마모 횟수", "baseline_mu": "미코팅 μ", "coated_mu": "코팅 μ", "pct": "변화율 (%)"})
                      [["조건", "코팅 마모 횟수", "비교 기준", "미코팅 μ", "코팅 μ", "변화율 (%)"]], hide_index=True, use_container_width=True)
+
+    dcof = ssum["dcof"]
+    if not dcof.empty:
+        st.subheader("동적 마찰계수 DCOF (마찰시험기)")
+        fig = go.Figure()
+        for (sid, label, coated), g in dcof.groupby(["specimen_id", "label", "coated"], sort=False):
+            for cond in ("dry", "wet"):
+                d = g[g["condition"] == cond].sort_values("abrasion_cycles")
+                if d.empty:
+                    continue
+                fig.add_scatter(x=d["abrasion_cycles"], y=d["dcof"], mode="lines+markers", name=f"{label} {cond}",
+                                line=dict(color=COLOR[cond], dash="solid" if coated else "dot"),
+                                error_y=dict(type="data", array=d["std"].fillna(0), visible=True, thickness=1))
+        fig.add_hrect(y0=0.40, y1=0.60, fillcolor="gray", opacity=0.08, line_width=0, annotation_text="시판 안전화 Wet DCOF 0.40~0.60", annotation_position="top left")
+        fig.update_layout(xaxis_title="마모 횟수 (cycle)", yaxis_title="DCOF", height=360)
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption("DCOF는 마찰시험기 값으로, 위의 경사판 정적 μ와는 별도 축입니다(R4).")
+
+    ms = ssum["mass"]
+    if not ms.empty:
+        st.subheader("내마모성 — 사포질 횟수별 시편 질량 변화")
+        fig = go.Figure()
+        fig.add_scatter(x=ms["abrasion_cycles"], y=ms["coated_loss_pct"], mode="lines+markers", name="코팅", line=dict(color=COLOR["coat"]))
+        fig.add_scatter(x=ms["abrasion_cycles"], y=ms["uncoated_loss_pct"], mode="lines+markers", name="미코팅", line=dict(color=COLOR["unc"], dash="dot"))
+        fig.add_hline(y=0, line_color="gray", line_width=1)
+        fig.update_layout(xaxis_title="마모 횟수 (cycle)", yaxis_title="질량 감소율 (%, 0회 대비)", height=320)
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption("양수 = 질량 감소(마모). 200회에서 두 시편 모두 질량이 늘어난 것은 측정 전 수분·사포 가루 등 외부 요인 가능성 — 팀 확인 필요.")
 
     with st.expander("세션 측정값 표 (평균·표준편차·n·μ)"):
         st.dataframe(series.drop(columns=["estimated_from_graph"]).round(3), hide_index=True, use_container_width=True)
@@ -356,8 +390,8 @@ elif page == "③ AI 실험 최적화":
                 st.stop()
         else:
             train = measured_training_table(specimens, clean, target=target)
-            st.info(f"업로드가 없으면 확정 실측 데이터셋에서 학습합니다 — 코팅 시편 {train['specimen_id'].nunique()}종, 마모 지점 {len(train)}행. "
-                    "지금은 배합이 한 가지뿐이라 AI가 '마모 횟수'의 영향만 배울 수 있고, 배합 변수의 추천은 참고용입니다.")
+            st.info(f"업로드가 없으면 확정 실측 데이터셋(8/26·10/26 세션)에서 학습합니다 — 코팅 시편 {train['specimen_id'].nunique()}종, 마모 지점 {len(train)}행. "
+                    "통합본 세션은 같은 측정의 재편집이라 중복 학습을 피해 제외합니다. 지금은 배합이 한 가지뿐이라 AI가 '마모 횟수'의 영향만 배울 수 있고, 배합 변수의 추천은 참고용입니다.")
 
     if st.button("GP 모델 학습 · 후보 계산", type="primary"):
         with st.spinner("학습 중..."):
@@ -404,7 +438,7 @@ elif page == "③ AI 실험 최적화":
 # ================================================================== 데이터 관리
 elif page == "데이터 관리":
     st.title("데이터 관리")
-    st.caption("화공 팀원용. 팀 엑셀(마찰계수 내마모성 검증데이터.xlsx) 양식이면 `python scripts/import_excel.py <엑셀>`로 CSV를 다시 만들 수 있고, 아래 템플릿에 직접 입력해 업로드해도 됩니다. 확정하면 새 데이터셋 버전이 됩니다.")
+    st.caption("화공 팀원용. 팀 엑셀 양식이면 `python scripts/import_excel.py` → `python scripts/import_integrated.py` 순으로 CSV를 다시 만들 수 있고, 아래 템플릿에 직접 입력해 업로드해도 됩니다. 확정하면 새 데이터셋 버전이 됩니다.")
 
     t1, t2 = st.columns(2)
     t1.download_button("measurements.csv 템플릿", pd.DataFrame(columns=MEASUREMENT_COLUMNS).to_csv(index=False).encode("utf-8-sig"), "measurements_template.csv", "text/csv")
@@ -438,7 +472,7 @@ elif page == "데이터 관리":
             st.error("오류가 있는 동안에는 확정할 수 없습니다. 표시된 행을 수정해 다시 업로드하세요.")
     else:
         st.subheader("현재 확정 데이터셋")
-        st.markdown(f"v{st.session_state.dataset_version}" + (f" · {st.session_state.uploaded_name}" if st.session_state.uploaded_name else " · 기본 (팀 엑셀 10/27 반입, 세션 4개)"))
+        st.markdown(f"v{st.session_state.dataset_version}" + (f" · {st.session_state.uploaded_name}" if st.session_state.uploaded_name else " · 기본 (팀 엑셀 + 통합본 10/27 반입, 세션 5개)"))
         st.markdown("**검증 리포트 (규칙별 건수)**")
         st.dataframe(pd.DataFrame([{"규칙": k, "건수": v} for k, v in sorted(report.by_rule().items())]), hide_index=True)
         with st.expander("measurements.csv"):

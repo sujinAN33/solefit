@@ -6,20 +6,21 @@ from .schema import (
     load_specimens,
     load_measurements,
     load_claims,
+    load_mass,
     SPECIMEN_COLUMNS,
     MEASUREMENT_COLUMNS,
 )
 from .validator import validate, validate_claims, ValidationReport
 from .safety import assess_safety, SafetyResult, load_rules, SCENARIOS
-from .summarize import summarize, contact_angle_summary, slip_angle_series, session_series, mu_bars, sessions, default_session
+from .summarize import summarize, contact_angle_summary, slip_angle_series, session_series, mu_bars, sessions, default_session, dcof_series, mass_summary
 from .gp import fit_gp, recommend, make_synthetic, DEFAULT_BOUNDS, INPUT_VARS, GPModel
 
 __all__ = [
-    "SafetyProfile", "Finding", "load_specimens", "load_measurements", "load_claims",
+    "SafetyProfile", "Finding", "load_specimens", "load_measurements", "load_claims", "load_mass",
     "SPECIMEN_COLUMNS", "MEASUREMENT_COLUMNS",
     "validate", "validate_claims", "ValidationReport",
     "assess_safety", "SafetyResult", "load_rules", "SCENARIOS",
-    "summarize", "contact_angle_summary", "slip_angle_series", "session_series", "mu_bars", "sessions", "default_session",
+    "summarize", "contact_angle_summary", "slip_angle_series", "session_series", "mu_bars", "sessions", "default_session", "dcof_series", "mass_summary",
     "fit_gp", "recommend", "make_synthetic", "DEFAULT_BOUNDS", "INPUT_VARS", "GPModel",
 ]
 

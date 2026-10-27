@@ -92,10 +92,13 @@ def make_synthetic(n: int = 24, target: str = "wet_mu", seed: int = 42, noise: f
 
 
 # ------------------------------------------------------------------ 실측 → 학습표
-def measured_training_table(specimens: pd.DataFrame, meas: pd.DataFrame, target: str = "wet_mu") -> pd.DataFrame:
-    """검증 통과한 실측 데이터에서 코팅 시편 × 마모 횟수별 학습 행을 만든다."""
+def measured_training_table(specimens: pd.DataFrame, meas: pd.DataFrame, target: str = "wet_mu", exclude_session_key: str | None = "통합본") -> pd.DataFrame:
+    """검증 통과한 실측 데이터에서 코팅 시편 × 마모 횟수별 학습 행을 만든다.
+    통합본 세션은 8/26·10/26 측정의 재편집이라 중복 학습을 피하기 위해 기본 제외."""
     rows = []
     coated = specimens[(specimens["coated"]) & (specimens["source"] == "measured")]
+    if exclude_session_key and "session" in coated.columns:
+        coated = coated[~coated["session"].astype(str).str.contains(exclude_session_key)]
     coated = coated.dropna(subset=[k for k in INPUT_VARS if k != "activation_cycles"])   # 배합 미기재 시편 제외
     for _, s in coated.iterrows():
         if target == "wet_mu":

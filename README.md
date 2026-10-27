@@ -21,11 +21,12 @@ streamlit run app.py
 
 테스트: `pytest tests/` (pytest가 없으면 `python tests/test_core.py`)
 
-## 데이터 (출처: 팀 엑셀 `마찰계수 내마모성 검증데이터.xlsx`, 10/27 반입)
+## 데이터 (출처: 팀 엑셀 2종, 10/27 반입)
 
-- `data/raw/` — 팀 엑셀 원본. `python scripts/import_excel.py` 로 아래 CSV를 다시 만든다.
-- `data/specimens.csv` — 시편 10개(배합·공정·세션). 한 행 = 시편 하나.
-- `data/measurements.csv` — 반복 측정 원값 174행(`agg=raw`). 평균·표준편차·μ=tanθ는 앱이 계산한다.
+- `data/raw/` — 팀 엑셀 원본 2개. CSV 재생성: `python scripts/import_excel.py` → `python scripts/import_integrated.py` 순서.
+- `data/specimens.csv` — 시편 12개(배합·공정·세션). 한 행 = 시편 하나.
+- `data/measurements.csv` — 반복 측정 원값 234행(`agg=raw`). 평균·표준편차·μ=tanθ는 앱이 계산한다.
+- `data/mass.csv` — 사포질 횟수별 시편 질량 (내마모성).
 
 | 세션 | 시편 | 내용 |
 | --- | --- | --- |
@@ -33,12 +34,13 @@ streamlit run app.py
 | 8/25 | R3A-U-00, R3A-U-S, R3A-C-01 | 미코팅 사포질 X/O, 코팅 사포 0~100회(20회 간격) 3회 반복 |
 | **8/26 (3차 최종검증, 발표 기준)** | R3-U-01, R3-C-01 | 발표 PPT의 그래프 원자료. 코팅 0회는 값 1개 |
 | 10/26 (4차) | R4-U-01, R4-C-01 | 미코팅·코팅 모두 사포 0~200(250)회, 같은 마모 횟수끼리 비교 가능 |
+| **통합본 (팀 확정, 10/27)** — 앱 기본 | R5-U-01, R5-C-01 | `마찰계수 통합.xlsx`. 미코팅·코팅 0~200회 × 건조·습윤 × 3회 반복. 8/25·8/26·10/26 측정을 팀이 재편집한 확정본. GP 학습에서는 중복을 피해 제외 |
 
 엑셀에서 가져오지 않은 것: 5° 간격 "마찰계수" 표(측정값 아님, 팀 확인), 시편 질량 표, 엑셀의 평균·μ·개선율 행(앱이 재계산). 접촉각은 PPT 18p 값.
-동적 마찰계수(마찰시험기)는 실험 중 — 받으면 `metric=dcof, method=tribometer_dcof` 행으로 추가.
+동적 마찰계수(DCOF): 통합본의 "동마찰계수" 블록은 아직 비어 있음. 값이 오면 `metric=dcof, method=tribometer_dcof, unit=mu` 행으로 `measurements.csv`에 추가 → ② 탭에 DCOF 그래프(시판 안전화 0.40~0.60 띠 포함)와 홈 KPI가 자동으로 생긴다. (`import_integrated.py`에 파서 추가 예정)
 - `data/claims.csv` — 보고서·발표의 서술 수치 (팀 내부 점검용, 앱 화면에는 표시하지 않음). `solefit_core.validate_claims(claims, meas)`로 확정 데이터와 대조할 수 있다.
 
-8/26 세션 집계는 PPT 값과 일치한다(미코팅 건조/습윤 μ 0.77/0.96, 코팅 0회 0.64/0.57, 200회 1.58/1.09). 발표 전에 보고서 본문 수치도 같은 값으로 맞출 것.
+8/26 세션과 통합본의 코팅 50~200회 집계는 PPT 값과 일치한다(미코팅 건조/습윤 μ 0.77/0.96, 코팅 0회 0.64/0.57, 200회 1.58/1.09). 발표 전에 보고서 본문 수치도 같은 값으로 맞출 것.
 
 ## 검증 규칙 (R1~R9)
 
@@ -74,7 +76,8 @@ solefit/
 │  ├─ safety.py + rules.yaml
 │  ├─ summarize.py        그래프용 집계
 │  └─ gp.py               GP 학습·UCB 추천·가상 데이터·R8/R9
-├─ scripts/import_excel.py 팀 엑셀 → CSV 변환
-├─ data/                  raw/(엑셀 원본) · specimens · measurements · claims
-└─ tests/test_core.py     규칙별·세션별·시나리오 A·B·C 골든 테스트 (19개)
+├─ scripts/import_excel.py       팀 엑셀(검증데이터) → CSV
+├─ scripts/import_integrated.py  팀 통합본 → 통합본 세션 + mass.csv
+├─ data/                  raw/(엑셀 원본 2개) · specimens · measurements · mass · claims
+└─ tests/test_core.py     규칙별·세션별·DCOF·시나리오 A·B·C 골든 테스트 (21개)
 ```

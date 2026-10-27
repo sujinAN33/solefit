@@ -134,7 +134,8 @@ def test_shoe_type_crocs_forces_material():
 def test_summary_matches_ppt():
     """8/26 세션 집계가 발표 PPT 값과 일치하는지."""
     sp, me, _ = _data()
-    s = sc.summarize(me, sp)
+    ses = [x for x in sc.sessions(sp) if "8/26" in x][0]
+    s = sc.summarize(me, sp, ses)
     assert "8/26" in s["session"]
     assert s["kpi"]["contact_angle_coated"] == 153.9 and s["kpi"]["contact_angle_uncoated"] == 90.5
     assert s["kpi"]["mu_wet_0"] == 0.57 and s["kpi"]["mu_wet_max"] == round(math.tan(math.radians(47.5)), 3)
@@ -145,9 +146,32 @@ def test_summary_matches_ppt():
     assert abs(wet200["pct"] - 13.8) < 0.2
 
 
+def test_default_is_integrated_session():
+    sp, me, _ = _data()
+    s = sc.summarize(me, sp, mass=sc.load_mass())
+    assert "통합본" in s["session"]
+    assert s["kpi"]["mu_wet_max"] == round(math.tan(math.radians(47.5)), 3) and s["kpi"]["mu_dry_max"] == 1.576
+    assert all(i["same_cycles"] for i in s["improvements"])        # 미코팅도 마모 횟수별로 있음
+    assert len(s["mass"]) == 5 and s["mass"]["coated_loss_pct"].iloc[0] == 0
+    assert s["dcof"].empty                                          # 아직 값 없음
+
+
+def test_dcof_rows_flow_to_summary_and_not_into_mu():
+    sp, me, _ = _data()
+    base = me[(me["specimen_id"] == "R5-C-01") & (me["condition"] == "wet")].iloc[0].to_dict()
+    extra = pd.DataFrame([{**base, "metric": "dcof", "method": "tribometer_dcof", "unit": "mu", "abrasion_cycles": c, "repeat_no": r, "value": v}
+                          for c, vals in ((0, [0.45, 0.47, 0.46]), (200, [0.61, 0.63, 0.62])) for r, v in enumerate(vals, 1)])
+    me2 = pd.concat([me, extra], ignore_index=True)
+    rep = sc.validate(me2, sp)
+    assert rep.passed
+    s = sc.summarize(me2, sp)
+    assert len(s["dcof"]) == 2 and s["kpi"]["dcof_wet_max"] == 0.62
+    assert s["kpi"]["mu_wet_max"] == round(math.tan(math.radians(47.5)), 3)   # μ 집계는 DCOF와 섞이지 않음
+
+
 def test_all_sessions_summarize():
     sp, me, _ = _data()
-    assert len(sc.sessions(sp)) == 4
+    assert len(sc.sessions(sp)) == 5
     for ses in sc.sessions(sp):
         s = sc.summarize(me, sp, ses)
         assert not s["series"].empty and not s["mu"].empty

@@ -6,7 +6,7 @@ import math
 
 import pandas as pd
 
-DEFAULT_SESSION_KEY = "8/26"   # 발표 기준 세션 (session 문자열에 포함)
+DEFAULT_SESSION_KEY = "통합본"   # 기본 세션 (session 문자열에 포함) — 팀 확정 통합본
 
 
 def sessions(specimens: pd.DataFrame) -> list[str]:
@@ -132,6 +132,37 @@ def improvements(series: pd.DataFrame) -> list[dict]:
     return out
 
 
+def dcof_series(meas: pd.DataFrame, specimens: pd.DataFrame, session: str | None) -> pd.DataFrame:
+    """마찰시험기 동적 마찰계수(DCOF) — 값이 있을 때만. 경사판 정적 μ와는 섞지 않는다(R4)."""
+    sp = session_specimens(specimens, session)
+    g = meas[(meas["metric"] == "dcof") & (meas["method"] == "tribometer_dcof") & (meas["specimen_id"].isin(sp["specimen_id"]))
+             & (meas["condition"].isin(["dry", "wet"]))]
+    cols = ["specimen_id", "label", "coated", "condition", "abrasion_cycles", "dcof", "std", "n"]
+    if g.empty:
+        return pd.DataFrame(columns=cols)
+    rows = []
+    for (sid, cond, cyc), gg in g.groupby(["specimen_id", "condition", "abrasion_cycles"]):
+        v, sd, n, _ = _stats(gg)
+        rows.append({"specimen_id": sid, "label": _label(specimens, sid), "coated": bool(sp.set_index("specimen_id").loc[sid, "coated"]),
+                     "condition": cond, "abrasion_cycles": cyc, "dcof": v, "std": sd, "n": n})
+    return pd.DataFrame(rows, columns=cols).sort_values(["coated", "condition", "abrasion_cycles"]).reset_index(drop=True)
+
+
+def mass_summary(mass: pd.DataFrame | None, session: str | None) -> pd.DataFrame:
+    """사포질 횟수별 질량 변화율(%) — 0회 대비."""
+    cols = ["abrasion_cycles", "uncoated_g", "coated_g", "uncoated_loss_pct", "coated_loss_pct"]
+    if mass is None or mass.empty:
+        return pd.DataFrame(columns=cols)
+    m = mass[mass["session"] == session] if session and "session" in mass.columns else mass
+    if m.empty:
+        return pd.DataFrame(columns=cols)
+    m = m.sort_values("abrasion_cycles").copy()
+    u0, c0 = m["uncoated_g"].iloc[0], m["coated_g"].iloc[0]
+    m["uncoated_loss_pct"] = ((u0 - m["uncoated_g"]) / u0 * 100).round(3)
+    m["coated_loss_pct"] = ((c0 - m["coated_g"]) / c0 * 100).round(3)
+    return m[cols].reset_index(drop=True)
+
+
 def pending_rows(meas: pd.DataFrame) -> pd.DataFrame:
     g = meas[meas["condition"] == "unknown"]
     if g.empty:
@@ -140,12 +171,14 @@ def pending_rows(meas: pd.DataFrame) -> pd.DataFrame:
     return out.rename(columns={"count": "n"})
 
 
-def summarize(meas: pd.DataFrame, specimens: pd.DataFrame, session: str | None = None) -> dict:
+def summarize(meas: pd.DataFrame, specimens: pd.DataFrame, session: str | None = None, mass: pd.DataFrame | None = None) -> dict:
     session = session or default_session(specimens)
     ca = contact_angle_summary(meas, specimens)
     series = session_series(meas, specimens, session)
     mu = mu_bars(series)
     imp = improvements(series)
+    dcof = dcof_series(meas, specimens, session)
+    mass_s = mass_summary(mass, session)
 
     kpi: dict = {}
     coated_ca = ca[ca["label"].str.startswith("코팅")]
@@ -167,6 +200,11 @@ def summarize(meas: pd.DataFrame, specimens: pd.DataFrame, session: str | None =
                 if not sm.empty:
                     kpi[f"mu_{cond}_max"] = float(sm["mu"].iloc[0])
 
+    if not dcof.empty:
+        for cond in ("dry", "wet"):
+            d = dcof[(dcof["coated"]) & (dcof["condition"] == cond)]
+            if not d.empty:
+                kpi[f"dcof_{cond}_max"] = round(float(d.sort_values("abrasion_cycles")["dcof"].iloc[-1]), 3)
     pend = pending_rows(meas)
     notes = []
     for _, r in pend.iterrows():
@@ -178,10 +216,13 @@ def summarize(meas: pd.DataFrame, specimens: pd.DataFrame, session: str | None =
         notes.append("미코팅 시편이 마모 횟수별로 측정되지 않은 세션은 코팅 마모 후 값을 미코팅 0회와 비교한 것이다 — 같은 마모 횟수의 미코팅 대조군이 있는 10/26 세션 방식이 더 공정한 비교다.")
     notes += [
         "코팅 직후(0회) 습윤 μ가 미코팅보다 낮은 경향은 경화 직후 PU 스킨층이 평활하기 때문 — 제조 공정에 경화 후 표면 활성화 단계를 넣고 0회 값을 다시 측정할 것.",
-        "현재 마찰 값은 경사판 정적 μ(tanθ) 기준 — 마찰시험기 동적 마찰계수(DCOF, 실험 중) 값을 받으면 metric=dcof 행으로 추가해 시판 안전화와 같은 기준으로 비교할 수 있다.",
     ]
+    if dcof.empty:
+        notes.append("동적 마찰계수(DCOF)는 마찰시험기 측정이 진행 중 — 값이 들어오면 이 화면에 DCOF 그래프가 자동으로 추가되고, 시판 안전화(Wet DCOF 0.40~0.60)와 같은 기준으로 비교할 수 있다.")
+    else:
+        notes.append("DCOF는 마찰시험기 값, μ는 경사판 정적 값 — 두 그래프는 같은 축에 겹쳐 그리지 않는다(R4).")
     return {"session": session, "sessions": sessions(specimens), "contact_angle": ca, "series": series, "mu": mu,
-            "kpi": kpi, "improvements": imp, "notes": notes, "pending": pend}
+            "dcof": dcof, "mass": mass_s, "kpi": kpi, "improvements": imp, "notes": notes, "pending": pend}
 
 
 # 하위 호환 (테스트·외부 호출)

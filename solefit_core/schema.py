@@ -88,5 +88,13 @@ def load_measurements(path: Path | str | None = None) -> pd.DataFrame:
     return df
 
 
+def load_mass(path: Path | str | None = None) -> pd.DataFrame:
+    """사포질 횟수별 시편 질량 (내마모성 지표). 파일이 없으면 빈 표."""
+    p = Path(path) if path else DATA_DIR / "mass.csv"
+    if not p.exists():
+        return pd.DataFrame(columns=["session", "abrasion_cycles", "uncoated_g", "coated_g", "measured_on"])
+    return pd.read_csv(p, encoding="utf-8-sig")
+
+
 def load_claims(path: Path | str | None = None) -> pd.DataFrame:
     return pd.read_csv(path or DATA_DIR / "claims.csv")
