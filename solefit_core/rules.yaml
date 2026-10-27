@@ -1,0 +1,74 @@
+# 탭 ① 맞춤 안전관리 규칙표 — 화공 팀원이 직접 수정하는 파일
+# 등급: in_range(범위 내) / near(근접·추가 검증 권장) / out_of_range(범위 밖·시험 필요)
+
+verified_substrates: [rubber_outsole, rubber_plate]      # 실제 실험한 기재
+
+material:
+  rubber:
+    level: in_range
+    reason: "고무 아웃솔(러닝화)·고무판은 3차 최종검증 대상 기재 — 접촉각 153.9°, 습윤 μ 0.57→1.09(200회)"
+    extra_tests: []
+  eva:
+    level: near
+    reason: "EVA는 목표 기재이나 실험하지 않음 — 고무와 표면에너지·탄성이 달라 접착·마모 거동 재검증 필요"
+    extra_tests: ["EVA 기판 접착력(크로스컷)", "EVA 습윤 경사판 마찰 0·200회"]
+  tpu:
+    level: near
+    reason: "TPU는 목표 기재이나 실험하지 않음"
+    extra_tests: ["TPU 기판 접착력(크로스컷)", "TPU 습윤 경사판 마찰 0·200회"]
+  crocs_resin:
+    level: out_of_range
+    reason: "크록스형 수지(EVA 발포 계열)는 검증 범위를 벗어남 — 발포 표면 기공, 저표면에너지로 PUD 바인더 접착 불확실"
+    extra_tests: ["접착·박리 시험", "습윤 마찰 시험(0·200회)", "굽힘 피로 후 코팅 잔존율"]
+  unknown:
+    level: out_of_range
+    reason: "재질 미상 — 재질 확인 전에는 적용 가능성을 판단할 수 없음"
+    extra_tests: ["재질 확인(제품 라벨·제조사)"]
+
+wear:
+  good:
+    note: "마모 양호 — 코팅 직후에는 PU 스킨층 때문에 습윤 μ가 낮으므로(0.57) 표면 활성화(가벼운 사포 마모) 후 사용 권장"
+    restorable: true
+  partial:
+    note: "일부 마모 — 트레드가 남아 있으면 코팅 적용 가능. 마모면은 코팅 전 세척·건조 필요"
+    restorable: true
+  severe:
+    note: "홈이 닳아 없어진 밑창은 코팅으로 복원되지 않음 — 코팅은 수막 차단용이지 트레드 재생용이 아님. 교체 권장"
+    restorable: false
+    force_level: out_of_range
+
+environment:
+  indoor_dry:
+    caution: "건조 환경에서는 코팅 직후 정적 μ가 미코팅보다 낮을 수 있음(0.64 vs 0.77) — 습윤 환경 전용으로 안내"
+  indoor_wet:
+    caution: "젖은 실내 바닥(타일) — 실험 조건과 동일. 200회 마모 후 습윤 μ 1.09"
+  bathroom_wet_tile:
+    caution: "욕실 타일 — 실험 바닥재와 동일하나 비누·세제 막은 미검증. 세제 조건 추가 시험 권장"
+    extra_tests: ["세제 수막 조건 마찰 시험"]
+  kitchen_factory:
+    caution: "조리실·식품공장 — 1차 B2B 타깃. 유분 수막은 미검증"
+    extra_tests: ["유분 수막 조건 마찰 시험", "세척제 내화학성"]
+
+age:
+  child:
+    inspector: "보호자"
+    path: "보호자가 주 1회 밑창 마모·코팅 상태를 눈으로 점검, 앱 체크리스트 사용"
+    formulation_change: false
+    note: "어린이라는 이유만으로 화학 배합을 바꾸지 않음 — 안내 방식만 보호자 중심으로 전환"
+  adult:
+    inspector: "본인"
+    path: "본인이 월 1회 점검, 사업장이라면 안전관리자 점검 기록"
+    formulation_change: false
+  senior_65_74:
+    inspector: "본인 또는 보호자"
+    path: "본인 점검 + 보호자 확인, 지역 복지기관 낙상예방 프로그램 연계 가능"
+    formulation_change: false
+  senior_75_plus:
+    inspector: "보호자·복지기관"
+    path: "점검 결과를 보호자나 복지기관(노인복지관·방문요양)을 통해 확인하도록 안내"
+    formulation_change: false
+    note: "고령층용 처방을 추천하기 전에 소재 적합성 검증 여부를 먼저 확인"
+
+shoe_type:
+  crocs:
+    force_material: crocs_resin

@@ -1,0 +1,7 @@
+claim_id,source_doc,claim_type,description,metric,specimen_id,baseline_id,condition,abrasion_cycles,claimed_value,unit
+C1,과제보고서 3장,value,미코팅 대조군 습윤 초기 미끄럼 시작각 25.3° (μ≈0.47),slip_angle,R3-U-01,,wet,0,25.3,deg
+C2,과제보고서 3장,value,코팅 직후(마모 0회) 습윤 시작각 평균 34.5° (μ≈0.69),slip_angle,R3-C-01,,wet,0,34.5,deg
+C3,과제보고서 3장,improvement_pct,마모 200회 코팅 습윤 μ가 미코팅 대비 131.9% 상승,static_mu,R3-C-01,R3-U-01,wet,200,131.9,pct
+C4,과제보고서 요약,dcof,수막 조건 동적 마찰계수(Wet DCOF) 0.60 이상 달성,dcof,R3-C-01,,wet,200,0.60,mu
+C5,발표 PPT 18p,value,코팅 아웃솔 평균 접촉각 153.9°,contact_angle,R3-C-01,,dry,0,153.9,deg
+C6,발표 PPT 20p,value,마모 200회 습윤 미끄럼 시작각 47.5°,slip_angle,R3-C-01,,wet,200,47.5,deg

@@ -1,0 +1,11 @@
+﻿specimen_id,experiment_round,session,substrate,coated,ratio_50nm,hdtms_wt_pct,silica_pu_solid_ratio,sonication_min,coat_count,cure_temp_c,cure_h,source,note
+R2-U-00,2,초기 (브러시 1·2회 비교),rubber_outsole,False,,,,,,,,measured,코팅 x. 사포질 없음. 날짜 미기재 (과제보고서 2차 실험 8/14 추정)
+R2-C-B1,2,초기 (브러시 1·2회 비교),rubber_outsole,True,,,,,1.0,,,measured,브러시 1회 코팅. 배합 미기재
+R2-C-B2,2,초기 (브러시 1·2회 비교),rubber_outsole,True,,,,,2.0,,,measured,브러시 2회 코팅. 배합 미기재. 사포 20~100회 습윤 1회 측정 포함
+R3A-U-00,3,8/25,rubber_outsole,False,,,,,,,,measured,"미코팅, 사포질 X"
+R3A-U-S,3,8/25,rubber_outsole,False,,,,,,,,measured,"미코팅, 사포질 O (횟수 미기재 → abrasion_cycles=0 으로 기록)"
+R3A-C-01,3,8/25,rubber_outsole,True,,,,,2.0,,,measured,"코팅, 사포 0~100회(20회 간격). 배합 미기재"
+R3-U-01,3,"8/26 (3차 최종검증, 발표 기준)",rubber_outsole,False,,,,,,,,measured,"미코팅 대조군 (사포질 O, 횟수 미기재)"
+R3-C-01,3,"8/26 (3차 최종검증, 발표 기준)",rubber_outsole,True,0.75,10.0,1.0,20.0,2.0,70.0,1.0,measured,"최종 시제품 (브러시 2회 코팅, 70°C 열풍 1h, 상온 안정화 12h). 0회는 원본에 값 1개만 기록"
+R4-U-01,4,10/26 (4차),rubber_outsole,False,,,,,,,,measured,"미코팅, 사포 0~250회. 0·50·100회는 값 1개"
+R4-C-01,4,10/26 (4차),rubber_outsole,True,0.75,10.0,1.0,20.0,2.0,70.0,1.0,measured,"코팅, 사포 0~200회, 3회 반복"
