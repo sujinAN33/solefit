@@ -150,7 +150,7 @@ if page == "홈":
         cols = st.columns(3, gap="medium")
         for col, (icon, title, body, foot) in zip(cols, feat[r:r + 3]):
             with col:
-                st.markdown(f"""<div style="border:1px solid #D7DCE3;border-radius:10px;padding:14px 16px;margin-bottom:16px;height:215px;overflow:hidden;background:#F8FAFC;display:flex;flex-direction:column">
+                st.markdown(f"""<div style="border:1px solid #D7DCE3;border-radius:10px;padding:14px 16px;margin-bottom:16px;height:250px;overflow:hidden;background:#F8FAFC;display:flex;flex-direction:column">
 <div style="font-size:24px;line-height:1">{icon}</div>
 <h4 style="margin:8px 0 6px 0">{title}</h4>
 <p style="margin:0;line-height:1.5;flex:1">{body}</p>
