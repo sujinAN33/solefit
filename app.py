@@ -139,22 +139,22 @@ if page == "홈":
     st.divider()
     st.subheader("SoleFit 주요 기능")
     feat = [
-        ("📊", "1 · 실제 실험 결과", "코팅·미코팅 시편의 **정마찰계수(경사판 정적)** 와 **동마찰계수(경사판 동적, 경사각별)** 를 같은 조건끼리 나란히 비교합니다.", "모든 값은 반복 측정 원값에서 앱이 다시 계산하고 검증 배지를 붙입니다."),
-        ("📈", "2 · 마모 성능 추세", "0~200회 마모에 따른 성능 유지·변화를 보고, **실제 측정값과 회귀 모델 예측값을 구분**해 추세를 분석합니다. 기존 배합이 마모에 따라 어떻게 저하·회복되는지 수치로 보여줍니다.", "예측 구간(95%)과 외삽 구간을 분리해 표시합니다."),
-        ("🧠", "3 · AI 최적화 데모", "Gaussian Process 모델이 **다음 시험 조건**을 탐색하는 과정을 시연합니다. 가상 데이터 모드와 실제 데이터 모드를 명확히 구분합니다.", "실험 횟수가 제한된 재료 최적화용 도구입니다."),
-        ("🛡️", "4 · 안전관리 시나리오", "**검증된 시험 조건**(고무 아웃솔·타일·사포 마모)과 **실제 적용 대상**(연령·재질·환경·마모)의 차이를 비교해 추가 검증 필요 여부를 판정합니다.", "어린이·고령층은 안내 방식만 바꾸고 배합은 바꾸지 않습니다."),
-        ("🤝", "5 · 사회적 파급효과", "어린이·고령층을 위한 **밑창 점검·안전관리 서비스**로 확장될 가능성 — 점검 주기, 점검 주체, 리코팅 연계 흐름을 정리합니다.", "보고서의 RaaS(리코팅 구독) 모델과 연결됩니다."),
+        ("📊", "1 · 실제 실험 결과", "코팅·미코팅 시편의 정마찰계수(경사판 정적)와 동마찰계수(경사판 동적, 경사각별)를 같은 조건끼리 나란히 비교합니다.", "모든 값은 반복 측정 원값에서 앱이 다시 계산하고 검증 배지를 붙입니다."),
+        ("📈", "2 · 마모 성능 추세", "0~200회 마모에 따른 성능 변화를 실제 측정값과 회귀 모델 예측값으로 구분해 보여주고, 기존 배합의 저하·회복을 수치로 분석합니다.", "95% 예측 구간과 외삽 구간을 분리해 표시합니다."),
+        ("🧠", "3 · AI 최적화 데모", "Gaussian Process 모델이 지금까지의 실험을 학습해 다음에 시험할 배합·공정 조건을 예측값과 불확실성과 함께 제안합니다.", "가상 데이터 시연 모드와 실제 데이터 모드를 명확히 구분합니다."),
+        ("🛡️", "4 · 안전관리 시나리오", "검증된 시험 조건(고무 아웃솔·타일·사포 마모)과 실제 적용 대상(연령·재질·환경·마모)의 차이를 비교해 추가 검증 필요 여부를 판정합니다.", "어린이·고령층은 안내 방식만 바꾸고 배합은 바꾸지 않습니다."),
+        ("🤝", "5 · 사회적 파급효과", "어린이·고령층·습윤 작업장을 위한 밑창 점검·안전관리 서비스로 확장될 가능성을 점검 주체와 흐름으로 정리합니다.", "보고서의 리코팅 구독(RaaS) 모델과 연결됩니다."),
+        ("🔍", "공통 기반 · 수치 검증기", "다섯 기능 모두 같은 검증기를 거칩니다. 엑셀의 원값만 받아 다시 계산하고, 9가지 규칙을 통과한 데이터만 그래프·추세·AI에 씁니다.", "새 실험은 데이터 관리에서 올리면 검증 → 확정 → 갱신됩니다."),
     ]
-    cards = feat + [("🔍", "공통 기반 · 수치 검증기", "다섯 기능 모두 같은 검증기를 거칩니다. 엑셀의 원값만 받아 앱이 다시 계산하고, 9가지 규칙을 통과한 데이터만 그래프·추세·AI에 씁니다.", "새 실험은 데이터 관리에서 올리면 검증 → 확정 → 갱신이 한 번에 됩니다.")]
     for r in range(0, 6, 3):
         cols = st.columns(3, gap="medium")
-        for col, (icon, title, body, foot) in zip(cols, cards[r:r + 3]):
+        for col, (icon, title, body, foot) in zip(cols, feat[r:r + 3]):
             with col:
-                st.markdown(f"""<div style="border:1px solid #D7DCE3;border-radius:10px;padding:14px 16px;margin-bottom:16px;min-height:230px;background:#F8FAFC">
-<div style="font-size:26px">{icon}</div>
-<h4 style="margin:6px 0 8px 0">{title}</h4>
-<p style="margin:0 0 8px 0;line-height:1.55">{body}</p>
-<p style="margin:0;color:#5B6472;font-size:0.88em">{foot}</p></div>""".replace("**", ""), unsafe_allow_html=True)
+                st.markdown(f"""<div style="border:1px solid #D7DCE3;border-radius:10px;padding:14px 16px;margin-bottom:16px;height:215px;overflow:hidden;background:#F8FAFC;display:flex;flex-direction:column">
+<div style="font-size:24px;line-height:1">{icon}</div>
+<h4 style="margin:8px 0 6px 0">{title}</h4>
+<p style="margin:0;line-height:1.5;flex:1">{body}</p>
+<p style="margin:8px 0 0 0;color:#5B6472;font-size:0.86em">{foot}</p></div>""", unsafe_allow_html=True)
     st.write("")
 
     with st.expander("🔍 수치 검증기는 어떻게 작동하나요?", expanded=False):
