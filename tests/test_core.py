@@ -20,8 +20,10 @@ def test_default_dataset_passes():
     sp, me, _ = _data()
     rep = sc.validate(me, sp)
     assert rep.passed, rep.to_frame()
-    assert {f.rule_id for f in rep.findings if f.severity in ("info", "warning")} <= {"R1", "R2"}
-    assert not any(f.rule_id == "R5" for f in rep.warnings)
+    assert {f.rule_id for f in rep.findings if f.severity in ("info", "warning")} <= {"R1", "R2", "R5"}
+    # R5(조건 미확인)는 동마찰계수 행에만 (엑셀에 건조/습윤 미기재)
+    dcof_rows = set(me.index[me["metric"].isin(["dcof", "dcof_ref"])])
+    assert all(f.row in dcof_rows for f in rep.warnings if f.rule_id == "R5")
 
 
 # ---------------------------------------------------------------- 골든: 불일치 4건
@@ -70,7 +72,7 @@ def test_r4_dcof_on_incline_rejected():
     me = pd.concat([me, row.to_frame().T], ignore_index=True)
     me["abrasion_cycles"] = me["abrasion_cycles"].astype(int); me["value"] = me["value"].astype(float); me["n"] = me["n"].astype(int); me["repeat_no"] = me["repeat_no"].astype(int)
     rep = sc.validate(me, sp)
-    assert any(f.rule_id == "R4" and "DCOF" in f.message for f in rep.errors)
+    assert any(f.rule_id == "R4" and "dcof" in f.message for f in rep.errors)
 
 
 def test_r6_duplicate_conflict():
@@ -153,20 +155,46 @@ def test_default_is_integrated_session():
     assert s["kpi"]["mu_wet_max"] == round(math.tan(math.radians(47.5)), 3) and s["kpi"]["mu_dry_max"] == 1.576
     assert all(i["same_cycles"] for i in s["improvements"])        # 미코팅도 마모 횟수별로 있음
     assert len(s["mass"]) == 5 and s["mass"]["coated_loss_pct"].iloc[0] == 0
-    assert s["dcof"].empty                                          # 아직 값 없음
 
 
-def test_dcof_rows_flow_to_summary_and_not_into_mu():
+def test_dcof_incline_dynamic_imported():
+    """통합_최종 엑셀의 경사판 동적법 DCOF: 경사각별 보정값이 들어오고 μs 집계와 섞이지 않는다."""
     sp, me, _ = _data()
-    base = me[(me["specimen_id"] == "R5-C-01") & (me["condition"] == "wet")].iloc[0].to_dict()
-    extra = pd.DataFrame([{**base, "metric": "dcof", "method": "tribometer_dcof", "unit": "mu", "abrasion_cycles": c, "repeat_no": r, "value": v}
-                          for c, vals in ((0, [0.45, 0.47, 0.46]), (200, [0.61, 0.63, 0.62])) for r, v in enumerate(vals, 1)])
-    me2 = pd.concat([me, extra], ignore_index=True)
-    rep = sc.validate(me2, sp)
-    assert rep.passed
-    s = sc.summarize(me2, sp)
-    assert len(s["dcof"]) == 2 and s["kpi"]["dcof_wet_max"] == 0.62
-    assert s["kpi"]["mu_wet_max"] == round(math.tan(math.radians(47.5)), 3)   # μ 집계는 DCOF와 섞이지 않음
+    d = me[me["metric"] == "dcof"]
+    assert len(d) == 32 and set(d["method"]) == {"incline_dynamic"}
+    assert set(d["test_angle_deg"].unique()) == {35.0, 40.0, 45.0, 50.0}
+    s = sc.summarize(me, sp)
+    assert not s["dcof"].empty and "dcof_coated_max" in s["kpi"] and "dcof_uncoated_0" in s["kpi"]
+    assert s["kpi"]["mu_wet_max"] == round(math.tan(math.radians(47.5)), 3)   # μs는 DCOF와 섞이지 않음
+    am = s["dcof_angle_mean"]
+    assert set(am["abrasion_cycles"]) == {0, 50, 100, 150, 200}
+    # 코팅 40° 0회 보정값 0.664 (엑셀 원값)
+    row = s["dcof"][(s["dcof"]["coated"]) & (s["dcof"]["test_angle_deg"] == 40.0) & (s["dcof"]["abrasion_cycles"] == 0)]
+    assert abs(float(row["dcof"].iloc[0]) - 0.664) < 1e-9
+
+
+def test_r1_flags_dcof_reference_typo():
+    sp, me, _ = _data()
+    rep = sc.validate(me, sp)
+    w = [f for f in rep.warnings if f.rule_id == "R1" and "기준값" in f.message]
+    assert any("0.179" in f.message for f in w)          # 미코팅 50° 0회 기준값 0.179 (1.179 오타 추정)
+    assert rep.passed                                     # 경고이므로 데이터는 유지
+
+
+def test_trend_fits_measured_vs_predicted():
+    sp, me, _ = _data()
+    s = sc.summarize(me, sp)
+    f_unc = sc.fit_trend(s["series"], "미코팅", "wet", degree=2, extrapolate_to=250)
+    f_coat = sc.fit_trend(s["series"], "코팅", "wet", degree=2, extrapolate_to=250)
+    assert f_unc.slope_per_100 < 0 < f_coat.slope_per_100          # 미코팅 저하, 코팅 상승
+    assert f_coat.r2 > 0.9 and f_unc.r2 > 0.9
+    cv = f_coat.curve
+    assert cv["extrapolated"].sum() > 0 and (~cv["extrapolated"]).sum() > 0
+    assert (cv[cv["extrapolated"]]["hi"] - cv[cv["extrapolated"]]["lo"]).iloc[-1] > (cv[~cv["extrapolated"]]["hi"] - cv[~cv["extrapolated"]]["lo"]).iloc[0]
+    tt = sc.trend_table([f_unc, f_coat])
+    assert list(tt["판정"]) == ["저하", "상승"]
+    dg = sc.degradation_summary(s["series"])
+    assert len(dg) == 4
 
 
 def test_all_sessions_summarize():
@@ -216,8 +244,9 @@ def test_unknown_condition_excluded_from_graphs_and_training():
     extra = pd.DataFrame([{**base, "condition": "unknown", "abrasion_cycles": 50,
                            "repeat_no": i, "agg": "raw", "n": 1, "value": v, "unit": "deg"} for i, v in enumerate([30, 35, 40, 45, 50], 1)])
     me2 = pd.concat([me, extra], ignore_index=True)
+    rep0 = sc.validate(me, sp)
     rep = sc.validate(me2, sp)
-    assert rep.passed and sum(f.rule_id == "R5" for f in rep.warnings) == 5
+    assert rep.passed and sum(f.rule_id == "R5" for f in rep.warnings) == sum(f.rule_id == "R5" for f in rep0.warnings) + 5
     assert any(f.rule_id == "R2" and "CV" in f.message for f in rep.warnings)
     s = sc.summarize(me2, sp)
     assert not s["pending"].empty and int(s["pending"]["n"].iloc[0]) == 5

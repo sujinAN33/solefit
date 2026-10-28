@@ -23,7 +23,7 @@ from .schema import (
 )
 
 MU_TOL = 0.01
-KEY = ["specimen_id", "metric", "method", "condition", "floor", "abrasion_cycles"]
+KEY = ["specimen_id", "metric", "method", "condition", "floor", "abrasion_cycles", "test_angle_deg"]
 
 
 @dataclass
@@ -65,9 +65,14 @@ class ValidationReport:
 
 def validate(meas: pd.DataFrame, specimens: pd.DataFrame | None = None) -> ValidationReport:
     rep = ValidationReport()
+    if "test_angle_deg" not in meas.columns:
+        meas = meas.assign(test_angle_deg=float("nan"))
+    meas = meas.copy()
+    meas["test_angle_deg"] = meas["test_angle_deg"].fillna(-1.0)   # groupby 키용 (NaN은 그룹에서 빠짐)
     _r3_ranges(meas, specimens, rep)
     _r4_method(meas, rep)
     _r1_mu_recalc(meas, rep)
+    _r1_dcof_reference(meas, rep)
     _r2_repeats(meas, rep)
     _r6_duplicates(meas, rep)
     if specimens is not None:
@@ -115,8 +120,8 @@ def _r4_method(meas, rep):
         if m not in METHODS:
             rep.add("R4", "error", f"알 수 없는 시험법 '{m}'", row=i)
         elif met not in METHOD_METRICS[m]:
-            if met == "dcof":
-                rep.add("R4", "error", "DCOF(동적 마찰계수)는 tribometer_dcof 시험에서만 기록 가능 — 경사판 정적 μ와 혼용 불가", row=i)
+            if met in ("dcof", "dcof_ref"):
+                rep.add("R4", "error", "동적 마찰계수(dcof)는 tribometer_dcof 또는 incline_dynamic 시험에서만 기록 가능 — 경사판 정적 μ(incline_static)와 혼용 불가", row=i)
             else:
                 rep.add("R4", "error", f"시험법 {m}에서는 지표 {met}를 기록할 수 없음", row=i)
 
@@ -137,6 +142,18 @@ def _r1_mu_recalc(meas, rep):
         else:
             rep.add("R1", "info", f"{r['specimen_id']} {r['condition']} {r['abrasion_cycles']}회: μ={r['value_m']} ✓ (tanθ={calc:.3f})",
                     row=int(r["index_m"]))
+
+
+def _r1_dcof_reference(meas, rep):
+    """경사판 동적법 기준값(dcof_ref)은 tan(경사각)이어야 한다."""
+    if "test_angle_deg" not in meas.columns:
+        return
+    g = meas[(meas["metric"] == "dcof_ref") & meas["test_angle_deg"].notna()]
+    for i, r in g.iterrows():
+        calc = math.tan(math.radians(r["test_angle_deg"]))
+        if abs(calc - r["value"]) > 0.02:
+            rep.add("R1", "warning", f"{r['specimen_id']} {r['abrasion_cycles']}회 경사각 {r['test_angle_deg']:.0f}° 기준값 {r['value']} ≠ tanθ={calc:.3f} — 입력 오타 가능성(예: 0.179 ↔ 1.179), 팀 확인", row=i,
+                    detail={"recomputed": round(calc, 3)})
 
 
 # ---------------------------------------------------------------- R2

@@ -68,10 +68,10 @@ def finding_table(rep: sc.ValidationReport, show_info=False):
 
 
 RULES_PLAIN = [
-    ("R1", "μ = tanθ 다시 계산", "미끄러짐 시작각 θ에서 정적 마찰계수를 다시 계산해, 기록된 μ와 0.01 넘게 다르면 오류", "오류"),
+    ("R1", "μ = tanθ 다시 계산", "미끄러짐 시작각 θ에서 정적 마찰계수를 다시 계산해, 기록된 μ와 0.01 넘게 다르면 오류. 동적법 기준값이 tan(경사각)과 다르면 경고", "오류 / 경고"),
     ("R2", "평균·표준편차 다시 계산", "반복 측정 원값에서 평균과 표준편차를 앱이 직접 계산. 원값 없이 평균만 있으면 경고, 반복 편차가 15%를 넘어도 경고", "오류 / 경고"),
     ("R3", "물리적으로 가능한 범위", "접촉각 0~180°, 시작각 0~90°, 비율·wt%는 0 이상. 벗어나면 입력 실수로 보고 오류", "오류"),
-    ("R4", "시험법 섞지 않기", "경사판 정적 μ와 마찰시험기 동적 μ(DCOF)는 다른 값. 지표와 시험법이 맞지 않으면 오류", "오류"),
+    ("R4", "시험법 섞지 않기", "경사판 정적 μs와 동적 μk(경사판 동적법·마찰시험기)는 다른 값. 지표와 시험법이 맞지 않으면 오류", "오류"),
     ("R5", "같은 조건끼리 비교", "건조/습윤, 마모 횟수, 바닥재가 다르면 비교 결과에 ⚠️ 표시. 조건 미확인 데이터는 그래프에서 제외", "경고"),
     ("R6", "값 충돌 잡기", "같은 시편·조건에 서로 다른 값이 두 개 있으면 오류. 개선율은 기준 시편과 함께 다시 계산", "오류"),
     ("R7", "가상 데이터 격리", "가상(synthetic) 데이터는 실측과 절대 섞이지 않음. 섞으면 차단", "차단"),
@@ -90,7 +90,7 @@ def explain_validator():
     f1.markdown("**1. 입력**  \n엑셀 → CSV  \n(반복 측정 원값)")
     f2.markdown("**2. 검사**  \n규칙 R1~R9  \n오류 · 경고 · 통과")
     f3.markdown("**3. 확정**  \n오류 0건일 때만  \n새 데이터셋 버전")
-    f4.markdown("**4. 사용**  \n그래프(②)  \nAI 학습(③)")
+    f4.markdown("**4. 사용**  \n그래프(1·2)  \nAI 학습(3)")
     st.markdown("""
 | 표시 | 뜻 | 데이터는? |
 | --- | --- | --- |
@@ -117,7 +117,8 @@ with st.sidebar:
     st.divider()
     st.markdown("**프로토타입 고지**  \n이 앱은 시연용입니다. 추천 배합이 실제로 검증되었다는 뜻이 아니며, 가상 데이터는 실측과 구분해 표시됩니다.")
 
-page = st.sidebar.radio("화면", ["홈", "① 맞춤 안전관리", "② 기존 실험 결과", "③ AI 실험 최적화", "데이터 관리"], label_visibility="collapsed")
+PAGES = ["홈", "1 · 실제 실험 결과", "2 · 마모 성능 추세", "3 · AI 최적화 데모", "4 · 안전관리 시나리오", "5 · 사회적 파급효과", "데이터 관리"]
+page = st.sidebar.radio("화면", PAGES, label_visibility="collapsed")
 
 
 # ================================================================== 홈
@@ -129,28 +130,36 @@ if page == "홈":
     mc = kpi.get("max_cycles", 200)
     c2.metric(f"습윤 정적 μ (0 → {mc}회 마모)", f"{kpi.get('mu_wet_0', '—')} → {kpi.get('mu_wet_max', '—')}", "자가재생: 마모 후 상승")
     c3.metric(f"건조 정적 μ (0 → {mc}회 마모)", f"{kpi.get('mu_dry_0', '—')} → {kpi.get('mu_dry_max', '—')}")
-    if "dcof_wet_max" in kpi:
-        st.caption(f"{summary['session']} 세션 · μ는 경사판 정적 마찰계수(tanθ), 습윤 DCOF(마찰시험기) {kpi['dcof_wet_max']}")
-    else:
-        st.caption(f"{summary['session']} 세션 · 경사판 미끄럼 시작각 θ에서 μ = tanθ로 산출한 정적 마찰계수 (3회 반복 평균). 동적 마찰계수(DCOF)는 측정 중입니다.")
+    if "dcof_coated_max" in kpi:
+        c4, c5, c6 = st.columns(3)
+        c4.metric("동마찰계수 (코팅, 경사각 평균)", f"{kpi['dcof_coated_0']} → {kpi['dcof_coated_max']}", f"0 → {mc}회 마모")
+        c5.metric("동마찰계수 (미코팅, 경사각 평균)", f"{kpi['dcof_uncoated_0']} → {kpi['dcof_uncoated_max']}", f"0 → {mc}회 마모")
+        c6.metric("검증 데이터", f"{len(clean)}행", f"세션 {len(summary['sessions'])}개 · 규칙 R1~R9")
+    st.caption(f"{summary['session']} 세션 · 정마찰계수 μ = tan(미끄럼 시작각), 동마찰계수 = 경사판 동적법(경사각 35~50°) 보정값. 3회 반복 평균.")
     st.divider()
     st.subheader("SoleFit 주요 기능")
-    k1, k2, k3 = st.columns(3)
     feat = [
-        (k1, "🛡️", "① 맞춤 안전관리", "연령·밑창 재질·사용 환경·마모 상태를 입력하면 현재 실험 데이터로 코팅 적용 가능성을 **검증 범위 내 / 근접 / 범위 밖** 세 등급으로 판정하고, 점검 주체와 점검 방법, 필요한 추가 시험을 안내합니다.", "어린이는 보호자, 고령층은 복지기관 경로로 안내하되 화학 배합은 바꾸지 않습니다."),
-        (k2, "📊", "② 기존 실험 결과", "팀 엑셀의 반복 측정 원값에서 평균·표준편차·정적 마찰계수(μ = tanθ)를 앱이 직접 계산해, 접촉각·마모 횟수별 미끄럼 시작각·μ 그래프로 보여줍니다. 실험 세션(8/25 · 8/26 · 10/26)별로 비교할 수 있습니다.", "모든 값에 수치 검증기(R1~R9) 배지가 붙어 어떤 값을 믿어도 되는지 바로 보입니다."),
-        (k3, "🧠", "③ AI 실험 최적화", "Gaussian Process 회귀가 배합·공정 6변수와 결과의 관계를 학습해, 다음에 시험할 배합 후보를 **예측값 ± 불확실성**과 함께 추천합니다. 가상 데이터 시연 모드와 실제 데이터 모드를 명확히 구분합니다.", "실험 횟수가 제한된 재료 최적화에서 어디를 시험할지 정하는 도구입니다."),
+        ("📊", "1 · 실제 실험 결과", "코팅·미코팅 시편의 **정마찰계수(경사판 정적)** 와 **동마찰계수(경사판 동적, 경사각별)** 를 같은 조건끼리 나란히 비교합니다.", "모든 값은 반복 측정 원값에서 앱이 다시 계산하고 검증 배지를 붙입니다."),
+        ("📈", "2 · 마모 성능 추세", "0~200회 마모에 따른 성능 유지·변화를 보고, **실제 측정값과 회귀 모델 예측값을 구분**해 추세를 분석합니다. 기존 배합이 마모에 따라 어떻게 저하·회복되는지 수치로 보여줍니다.", "예측 구간(95%)과 외삽 구간을 분리해 표시합니다."),
+        ("🧠", "3 · AI 최적화 데모", "Gaussian Process 모델이 **다음 시험 조건**을 탐색하는 과정을 시연합니다. 가상 데이터 모드와 실제 데이터 모드를 명확히 구분합니다.", "실험 횟수가 제한된 재료 최적화용 도구입니다."),
+        ("🛡️", "4 · 안전관리 시나리오", "**검증된 시험 조건**(고무 아웃솔·타일·사포 마모)과 **실제 적용 대상**(연령·재질·환경·마모)의 차이를 비교해 추가 검증 필요 여부를 판정합니다.", "어린이·고령층은 안내 방식만 바꾸고 배합은 바꾸지 않습니다."),
+        ("🤝", "5 · 사회적 파급효과", "어린이·고령층을 위한 **밑창 점검·안전관리 서비스**로 확장될 가능성 — 점검 주기, 점검 주체, 리코팅 연계 흐름을 정리합니다.", "보고서의 RaaS(리코팅 구독) 모델과 연결됩니다."),
     ]
-    for col, icon, title, body, foot in feat:
+    row1 = st.columns(3); row2 = st.columns(3)
+    slots = row1 + row2[:2]
+    for col, (icon, title, body, foot) in zip(slots, feat):
         with col:
-            st.markdown(f"""<div style="border:1px solid #D7DCE3;border-radius:10px;padding:16px 18px;height:100%;background:#F8FAFC">
-<div style="font-size:28px">{icon}</div>
+            st.markdown(f"""<div style="border:1px solid #D7DCE3;border-radius:10px;padding:14px 16px;height:100%;background:#F8FAFC">
+<div style="font-size:26px">{icon}</div>
 <h4 style="margin:6px 0 8px 0">{title}</h4>
-<p style="margin:0 0 10px 0;line-height:1.6">{body}</p>
-<p style="margin:0;color:#5B6472;font-size:0.9em">{foot}</p></div>""".replace("**", ""), unsafe_allow_html=True)
+<p style="margin:0 0 8px 0;line-height:1.55">{body}</p>
+<p style="margin:0;color:#5B6472;font-size:0.88em">{foot}</p></div>""".replace("**", ""), unsafe_allow_html=True)
+    with row2[2]:
+        st.markdown("""<div style="border:1px dashed #B0B7C3;border-radius:10px;padding:14px 16px;height:100%">
+<div style="font-size:26px">🔍</div>
+<h4 style="margin:6px 0 8px 0">공통 기반 · 수치 검증기</h4>
+<p style="margin:0;line-height:1.55">다섯 기능 모두 같은 검증기를 거칩니다. 엑셀의 원값만 받아 앱이 다시 계산하고, 9가지 규칙을 통과한 데이터만 그래프·추세·AI에 씁니다. 새 실험은 <b>데이터 관리</b>에서 올리면 검증 → 확정 → 갱신이 한 번에 됩니다.</p></div>""", unsafe_allow_html=True)
     st.write("")
-    st.markdown("""**공통 기반 — 수치 검증기**  
-세 기능 모두 같은 검증기를 거칩니다. 엑셀의 원값만 받아 앱이 다시 계산하고, 9가지 규칙(계산 일치 · 물리 범위 · 시험법 분리 · 조건 일치 · 가상 데이터 격리 등)을 통과한 데이터만 그래프와 AI 학습에 씁니다. **데이터 관리** 화면에서 새 실험 CSV를 올리면 검증 → 확정 → 그래프·AI 갱신이 한 번에 이루어집니다.""")
 
     with st.expander("🔍 수치 검증기는 어떻게 작동하나요?", expanded=False):
         explain_validator()
@@ -162,134 +171,165 @@ if page == "홈":
     cols[2].metric("규칙", "R1 ~ R9")
 
 
-# ================================================================== ① 안전관리
-elif page == "① 맞춤 안전관리":
-    st.title("① 맞춤 안전관리 시뮬레이션")
-    st.caption("조건을 입력하면 현재 실험 데이터로 적용 가능성을 판정하고 점검 경로를 안내합니다. 연령은 안내 방식만 바꾸고 화학 배합은 바꾸지 않습니다.")
-
-    if "profile" not in st.session_state:
-        st.session_state.profile = sc.SCENARIOS["A — 어린이 운동화"].model_dump()
-    bcols = st.columns(3)
-    for i, (name, prof) in enumerate(sc.SCENARIOS.items()):
-        if bcols[i].button(f"시나리오 {name} 불러오기", use_container_width=True):
-            st.session_state.profile = prof.model_dump()
-    p = st.session_state.profile
-
-    with st.form("safety_form"):
-        c = st.columns(5)
-        age = c[0].selectbox("연령대", list(AGE), index=list(AGE).index(p["age_group"]), format_func=AGE.get)
-        mat = c[1].selectbox("밑창 재질", list(MAT), index=list(MAT).index(p["sole_material"]), format_func=MAT.get)
-        shoe = c[2].selectbox("신발 종류", list(SHOE), index=list(SHOE).index(p["shoe_type"]), format_func=SHOE.get)
-        env = c[3].selectbox("사용 환경", list(ENV), index=list(ENV).index(p["environment"]), format_func=ENV.get)
-        wear = c[4].selectbox("마모 상태", list(WEAR), index=list(WEAR).index(p["wear_state"]), format_func=WEAR.get)
-        run = st.form_submit_button("판정", type="primary")
-    if run:
-        st.session_state.profile = dict(age_group=age, sole_material=mat, shoe_type=shoe, environment=env, wear_state=wear)
-        p = st.session_state.profile
-
-    prof = SafetyProfile(**p)
-    res = sc.assess_safety(prof, evidence=kpi)
-    color = LEVEL_COLOR[res.level]
-    st.markdown(f"""<div style="border-left:8px solid {color};padding:12px 16px;background:{color}22;border-radius:6px">
-<h3 style="margin:0;color:{color}">{res.level_label}</h3>
-<p style="margin:4px 0 0 0">{' · '.join(res.reasons)}</p></div>""", unsafe_allow_html=True)
-    st.write("")
-    a, b = st.columns(2)
-    with a:
-        st.markdown("**점검 방법**")
-        st.markdown(f"- 점검 주체: **{res.inspector}**\n- {res.inspection_path}")
-        st.markdown("**주의 사항**")
-        for cau in res.cautions:
-            st.markdown(f"- {cau}")
-        if not res.restorable:
-            st.error("심하게 닳은 밑창은 코팅으로 복원할 수 없습니다. 교체를 권장합니다.")
-    with b:
-        st.markdown("**근거 실측값 (고무 아웃솔, 3차 최종검증)**")
-        st.dataframe(pd.DataFrame({
-            "지표": ["접촉각", "습윤 μ (0회)", f"습윤 μ ({kpi.get('max_cycles', 200)}회 마모)", "건조 μ (0회)", f"건조 μ ({kpi.get('max_cycles', 200)}회 마모)"],
-            "값": [f"{kpi.get('contact_angle_coated')}°", kpi.get("mu_wet_0"), kpi.get("mu_wet_max"), kpi.get("mu_dry_0"), kpi.get("mu_dry_max")],
-        }), hide_index=True, use_container_width=True)
-        if res.extra_tests:
-            st.markdown("**추천 전에 필요한 추가 시험**")
-            for t in res.extra_tests:
-                st.markdown(f"- [ ] {t}")
-        else:
-            st.markdown("**추가 시험**: 없음 (검증 범위 내)")
-        st.caption(f"배합 변경: {'있음' if res.formulation_change else '없음 — 연령은 안내 방식만 바꿉니다'}")
-
-
-# ================================================================== ② 실험 결과
-elif page == "② 기존 실험 결과":
-    st.title("② 기존 실험 결과")
-    st.caption("팀 엑셀의 반복 측정 원자료. 모든 값은 수치 검증기(R1~R9)를 거쳤고, 평균·표준편차·μ는 앱이 다시 계산합니다.")
-
+# ================================================================== 1 · 실제 실험 결과
+elif page == "1 · 실제 실험 결과":
+    st.title("1 · 실제 실험 결과 — 코팅 vs 미코팅")
+    st.caption("팀 엑셀의 반복 측정 원자료. 평균·표준편차·μ는 앱이 다시 계산하고, 모든 값은 수치 검증기(R1~R9)를 거칩니다.")
     ses_list = summary["sessions"]
     ses = st.selectbox("실험 세션", ses_list, index=ses_list.index(summary["session"]) if summary["session"] in ses_list else 0)
     ssum = sc.summarize(clean, specimens, ses, mass=mass)
-    series, mu, ca = ssum["series"], ssum["mu"], ssum["contact_angle"]
+    series, mu, ca, dcof = ssum["series"], ssum["mu"], ssum["contact_angle"], ssum["dcof"]
 
-    g1, g2 = st.columns(2)
+    st.subheader("정마찰계수 μs (경사판 정적법, μ = tanθ)")
+    g1, g2 = st.columns([3, 2])
     with g1:
         fig = go.Figure()
-        for _, r in ca.iterrows():
-            fig.add_bar(x=[r["label"]], y=[r["mean"]], error_y=dict(type="data", array=[r["std"]]),
-                        marker_color=COLOR["coat"] if r["label"].startswith("코팅") else COLOR["unc"],
-                        text=[f"{r['mean']:.1f}° (n={r['n']})"], textposition="outside", name=r["label"])
-        fig.add_hline(y=150, line_dash="dash", annotation_text="초소수성 기준 150°", line_color="gray")
-        fig.update_layout(title="정적 접촉각 (DropSnake, 8/26 시제품)", yaxis_title="접촉각 (°)", yaxis_range=[0, 180], showlegend=False, height=380)
+        for cond in ("dry", "wet"):
+            m = mu[mu["condition"] == cond]
+            fig.add_bar(x=m["group"], y=m["mu"], name="건조 (Dry)" if cond == "dry" else "습윤 (Wet)", marker_color=COLOR[cond],
+                        text=[f"{v:.2f}" for v in m["mu"]], textposition="outside",
+                        customdata=m[["n"]].values, hovertemplate="%{x}<br>μs=%{y:.3f} · n=%{customdata[0]}<extra></extra>")
+        fig.update_layout(title=f"코팅·미코팅 정마찰계수 — {ses}", yaxis_title="정마찰계수 μs", barmode="group", height=380, legend=dict(orientation="h", y=1.1))
         st.plotly_chart(fig, use_container_width=True)
     with g2:
-        fig = go.Figure()
-        for (sid, label, coated), g in series.groupby(["specimen_id", "label", "coated"], sort=False):
-            if g["abrasion_cycles"].nunique() < 2:
-                continue
-            for cond in ("dry", "wet"):
-                sgl = g[g["condition"] == cond].sort_values("abrasion_cycles")
-                if sgl.empty:
-                    continue
-                fig.add_scatter(x=sgl["abrasion_cycles"], y=sgl["slip_angle"], mode="lines+markers", name=f"{label} {cond}",
-                                line=dict(color=COLOR[cond], dash="solid" if coated else "dot"),
-                                marker=dict(size=9, symbol="circle" if coated else "circle-open"),
-                                error_y=dict(type="data", array=sgl["std"].fillna(0), visible=True, thickness=1),
-                                customdata=sgl[["mu", "n"]].values,
-                                hovertemplate="마모 %{x}회<br>θ=%{y:.1f}° · μ=%{customdata[0]:.2f}<br>n=%{customdata[1]} · 경사판 정적<extra></extra>")
-        fig.update_layout(title=f"마모 횟수에 따른 미끄럼 시작각 — {ses}", xaxis_title="마모 횟수 (cycle)", yaxis_title="미끄러짐 시작각 (°)", height=380)
-        st.plotly_chart(fig, use_container_width=True)
-        st.caption("실선 = 코팅, 점선 = 미코팅. 오차막대 = 반복 측정 표준편차 (반복 1회는 없음)")
+        imp = pd.DataFrame(ssum["improvements"])
+        if not imp.empty:
+            st.markdown("**같은 마모 횟수의 미코팅 대비 코팅 μs 변화율**")
+            show = imp.copy()
+            show["기준"] = show.apply(lambda r: f"미코팅 {r['baseline_cycles']}회" + ("" if r["same_cycles"] else " ⚠️"), axis=1)
+            show["조건"] = show["condition"].map({"dry": "건조", "wet": "습윤"})
+            st.dataframe(show.rename(columns={"cycles": "마모", "baseline_mu": "미코팅", "coated_mu": "코팅", "pct": "변화율 %"})[["조건", "마모", "미코팅", "코팅", "변화율 %"]],
+                         hide_index=True, use_container_width=True, height=380)
 
+    if not dcof.empty:
+        st.subheader("동마찰계수 μk (경사판 동적법 — 경사각별 보정값)")
+        st.caption("경사판을 35·40·45·50°로 세워 미끄러지는 가속도로 보정한 동마찰계수. 경사각마다 조건이 달라 각도별로 따로 봅니다. 기준값(tanθ)은 검증기 R1이 확인합니다.")
+        angles = sorted(a for a in dcof["test_angle_deg"].dropna().unique())
+        pick = st.multiselect("경사각", angles, default=angles, format_func=lambda a: f"{a:.0f}°")
+        d = dcof[dcof["test_angle_deg"].isin(pick)]
+        fig = go.Figure()
+        shade = {35.0: 0.35, 40.0: 0.55, 45.0: 0.75, 50.0: 1.0}
+        for (label, coated, ang), g in d.groupby(["label", "coated", "test_angle_deg"], sort=False):
+            g = g.sort_values("abrasion_cycles")
+            base = COLOR["coat"] if coated else COLOR["unc"]
+            fig.add_scatter(x=g["abrasion_cycles"], y=g["dcof"], mode="lines+markers", name=f"{label} {ang:.0f}°",
+                            line=dict(color=base, dash="solid" if coated else "dot"), opacity=shade.get(ang, 0.8),
+                            marker=dict(size=8, symbol="circle" if coated else "circle-open"),
+                            hovertemplate=f"{label} 경사각 {ang:.0f}°<br>마모 %{{x}}회 · μk=%{{y:.3f}}<extra></extra>")
+        am = ssum["dcof_angle_mean"]
+        for coated, label in ((True, "코팅"), (False, "미코팅")):
+            a = am[am["coated"] == coated].sort_values("abrasion_cycles")
+            if not a.empty:
+                fig.add_scatter(x=a["abrasion_cycles"], y=a["dcof_mean"], mode="lines", name=f"{label} 경사각 평균", line=dict(color=COLOR["coat"] if coated else COLOR["unc"], width=4, dash="solid" if coated else "dot"))
+        fig.update_layout(xaxis_title="마모 횟수 (cycle)", yaxis_title="동마찰계수 μk", height=420, legend=dict(orientation="h", y=-0.2))
+        st.plotly_chart(fig, use_container_width=True)
+        k1, k2 = st.columns(2)
+        am2 = am.copy(); am2["시편"] = am2["label"]
+        with k1:
+            st.markdown("**경사각 평균 μk (마모 횟수별)**")
+            piv = am2.pivot(index="abrasion_cycles", columns="시편", values="dcof_mean").round(3)
+            piv.index.name = "마모 횟수"
+            st.dataframe(piv, use_container_width=True)
+        with k2:
+            st.markdown("**정마찰 vs 동마찰 한눈에 (0회 → 최대 마모)**")
+            k = ssum["kpi"]
+            st.dataframe(pd.DataFrame({
+                "지표": ["정마찰 μs 건조", "정마찰 μs 습윤", "동마찰 μk (경사각 평균)"],
+                "코팅": [f"{k.get('mu_dry_0')} → {k.get('mu_dry_max')}", f"{k.get('mu_wet_0')} → {k.get('mu_wet_max')}", f"{k.get('dcof_coated_0')} → {k.get('dcof_coated_max')}"],
+                "미코팅": [f"{mu[(mu['group'].str.startswith('미코팅')) & (mu['condition']=='dry')]['mu'].round(3).tolist()}", f"{mu[(mu['group'].str.startswith('미코팅')) & (mu['condition']=='wet')]['mu'].round(3).tolist()}", f"{k.get('dcof_uncoated_0')} → {k.get('dcof_uncoated_max')}"],
+            }), hide_index=True, use_container_width=True)
+        if (dcof["condition"] == "unknown").any():
+            st.info("동마찰계수 표에는 건조/습윤 조건이 적혀 있지 않습니다. 팀 확인 후 condition을 채우면 시판 안전화 Wet DCOF(0.40~0.60)와 직접 비교할 수 있어요.")
+
+    st.subheader("초소수성 — 정적 접촉각")
     fig = go.Figure()
-    for cond in ("dry", "wet"):
-        m = mu[mu["condition"] == cond]
-        fig.add_bar(x=m["group"], y=m["mu"], name=cond.capitalize(), marker_color=COLOR[cond],
-                    text=[f"{v:.2f}" for v in m["mu"]], textposition="outside",
-                    customdata=m[["n"]].values, hovertemplate="%{x}<br>μ=%{y:.3f} · n=%{customdata[0]}<extra></extra>")
-    fig.update_layout(title=f"정적 마찰계수 μ = tanθ — {ses}", yaxis_title="정적 마찰계수 (μ)", barmode="group", height=360)
+    for _, r in ca.iterrows():
+        fig.add_bar(x=[r["label"]], y=[r["mean"]], error_y=dict(type="data", array=[r["std"]]),
+                    marker_color=COLOR["coat"] if r["label"].startswith("코팅") else COLOR["unc"],
+                    text=[f"{r['mean']:.1f}° (n={r['n']})"], textposition="outside", name=r["label"])
+    fig.add_hline(y=150, line_dash="dash", annotation_text="초소수성 기준 150°", line_color="gray")
+    fig.update_layout(title="정적 접촉각 (DropSnake, 8/26 시제품)", yaxis_title="접촉각 (°)", yaxis_range=[0, 180], showlegend=False, height=320)
     st.plotly_chart(fig, use_container_width=True)
 
-    imp = pd.DataFrame(ssum["improvements"])
-    if not imp.empty:
-        st.markdown("**미코팅 대비 코팅 μ 변화율**")
-        show = imp.copy()
-        show["비교 기준"] = show.apply(lambda r: f"미코팅 {r['baseline_cycles']}회" + ("" if r["same_cycles"] else " ⚠️ 조건 다름"), axis=1)
-        st.dataframe(show.rename(columns={"condition": "조건", "cycles": "코팅 마모 횟수", "baseline_mu": "미코팅 μ", "coated_mu": "코팅 μ", "pct": "변화율 (%)"})
-                     [["조건", "코팅 마모 횟수", "비교 기준", "미코팅 μ", "코팅 μ", "변화율 (%)"]], hide_index=True, use_container_width=True)
+    with st.expander("세션 측정값 표 (평균·표준편차·n·μ)"):
+        st.dataframe(series.drop(columns=["estimated_from_graph"]).round(3), hide_index=True, use_container_width=True)
+    st.subheader("값별 검증 결과")
+    with st.expander("🔍 이 표는 무엇인가요? (검증기 규칙 설명)"):
+        explain_validator()
+    finding_table(report, show_info=False)
 
-    dcof = ssum["dcof"]
-    if not dcof.empty:
-        st.subheader("동적 마찰계수 DCOF (마찰시험기)")
-        fig = go.Figure()
-        for (sid, label, coated), g in dcof.groupby(["specimen_id", "label", "coated"], sort=False):
-            for cond in ("dry", "wet"):
-                d = g[g["condition"] == cond].sort_values("abrasion_cycles")
-                if d.empty:
-                    continue
-                fig.add_scatter(x=d["abrasion_cycles"], y=d["dcof"], mode="lines+markers", name=f"{label} {cond}",
-                                line=dict(color=COLOR[cond], dash="solid" if coated else "dot"),
-                                error_y=dict(type="data", array=d["std"].fillna(0), visible=True, thickness=1))
-        fig.add_hrect(y0=0.40, y1=0.60, fillcolor="gray", opacity=0.08, line_width=0, annotation_text="시판 안전화 Wet DCOF 0.40~0.60", annotation_position="top left")
-        fig.update_layout(xaxis_title="마모 횟수 (cycle)", yaxis_title="DCOF", height=360)
-        st.plotly_chart(fig, use_container_width=True)
-        st.caption("DCOF는 마찰시험기 값으로, 위의 경사판 정적 μ와는 별도 축입니다(R4).")
+
+# ================================================================== 2 · 마모 성능 추세
+elif page == "2 · 마모 성능 추세":
+    st.title("2 · 마모 성능 추세 — 측정값과 예측값")
+    st.caption("0~200회 사포 마모에 따른 성능 유지·변화를 보고, 실제 측정값(점)과 회귀 모델 예측(선·띠)을 구분해 추세를 분석합니다.")
+    ses_list = summary["sessions"]
+    ses = st.selectbox("실험 세션", ses_list, index=ses_list.index(summary["session"]) if summary["session"] in ses_list else 0)
+    ssum = sc.summarize(clean, specimens, ses, mass=mass)
+    series = ssum["series"]
+
+    c = st.columns([1, 1, 1, 1])
+    metric_choice = c[0].selectbox("지표", ["정마찰계수 μs (경사판 정적)", "미끄럼 시작각 θ", "동마찰계수 μk (경사각 평균)"])
+    degree = c[1].radio("회귀 모델", [1, 2], index=1, format_func=lambda d: f"{d}차 다항", horizontal=True)
+    extrap = c[2].slider("예측 범위 (회)", 200, 300, 250, 10)
+    show_band = c[3].checkbox("95% 예측 구간", value=True)
+
+    if metric_choice.startswith("동마찰"):
+        am = ssum["dcof_angle_mean"].rename(columns={"dcof_mean": "mu"})
+        src = am.assign(condition="angle_mean", std=am["dcof_std"], n=am["n_angles"])
+        ycol, ylab, conds = "mu", "동마찰계수 μk (경사각 평균)", ["angle_mean"]
+    elif metric_choice.startswith("미끄럼"):
+        src, ycol, ylab, conds = series, "slip_angle", "미끄럼 시작각 (°)", ["dry", "wet"]
+    else:
+        src, ycol, ylab, conds = series, "mu", "정마찰계수 μs", ["dry", "wet"]
+
+    fits = []
+    fig = go.Figure()
+    for (label, coated), g in src.groupby(["label", "coated"], sort=False):
+        for cond in conds:
+            gg = g[g["condition"] == cond].sort_values("abrasion_cycles")
+            if len(gg) < 2:
+                continue
+            color = (COLOR["coat"] if coated else COLOR["unc"]) if cond == "angle_mean" else COLOR[cond]
+            name = f"{label}" + ("" if cond == "angle_mean" else f" {'건조' if cond == 'dry' else '습윤'}")
+            fig.add_scatter(x=gg["abrasion_cycles"], y=gg[ycol], mode="markers", name=f"{name} · 측정", marker=dict(color=color, size=10, symbol="circle" if coated else "circle-open"),
+                            error_y=dict(type="data", array=gg["std"].fillna(0), visible=True, thickness=1))
+            f = sc.fit_trend(src, label, cond, degree=degree, extrapolate_to=extrap, ycol=ycol)
+            if f is None:
+                continue
+            fits.append(f)
+            cv = f.curve
+            inside, outside = cv[~cv["extrapolated"]], cv[cv["extrapolated"] | (cv["x"] == cv[~cv["extrapolated"]]["x"].max())]
+            if show_band:
+                fig.add_scatter(x=pd.concat([cv["x"], cv["x"][::-1]]), y=pd.concat([cv["hi"], cv["lo"][::-1]]), fill="toself",
+                                fillcolor=color.replace(")", ",0.10)").replace("rgb", "rgba") if color.startswith("rgb") else color + "1A",
+                                line=dict(color="rgba(0,0,0,0)"), showlegend=False, hoverinfo="skip")
+            fig.add_scatter(x=inside["x"], y=inside["y_hat"], mode="lines", name=f"{name} · 예측(적합)", line=dict(color=color, width=2, dash="solid" if coated else "dot"))
+            if len(outside) > 1:
+                fig.add_scatter(x=outside["x"], y=outside["y_hat"], mode="lines", name=f"{name} · 외삽", line=dict(color=color, width=2, dash="dash"), opacity=0.6)
+    xmax = float(src["abrasion_cycles"].max()) if not src.empty else 200
+    if extrap > xmax:
+        fig.add_vrect(x0=xmax, x1=extrap, fillcolor="gray", opacity=0.07, line_width=0, annotation_text="외삽 (측정 범위 밖 · 참고용)", annotation_position="top left")
+    fig.update_layout(xaxis_title="마모 횟수 (cycle)", yaxis_title=ylab, height=480, legend=dict(orientation="h", y=-0.2))
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption("● 측정값(반복 평균 ± 표준편차) · ─ 회귀 적합 · ╌ 외삽 · 띠 = 95% 예측 구간. 외삽은 측정 범위 밖이라 참고용입니다.")
+
+    if fits:
+        t1, t2 = st.columns(2)
+        with t1:
+            st.markdown("**회귀 모델 요약**")
+            tt = sc.trend_table(fits)
+            tt["조건"] = tt["조건"].map({"dry": "건조", "wet": "습윤", "angle_mean": "경사각 평균"})
+            st.dataframe(tt, hide_index=True, use_container_width=True)
+        with t2:
+            st.markdown("**기존 배합의 마모에 따른 성능 변화 (0회 → 최대 마모)**")
+            dg = sc.degradation_summary(src, ycol=ycol)
+            dg["조건"] = dg["조건"].map({"dry": "건조", "wet": "습윤", "angle_mean": "경사각 평균"})
+            st.dataframe(dg, hide_index=True, use_container_width=True)
+        st.markdown("""
+**읽는 법** — 미코팅 시편은 마모가 진행될수록 μs가 떨어지는 **저하** 추세이고, 코팅 시편은 0회에서 가장 낮았다가 마모와 함께 **상승**합니다(경화 직후 PU 스킨층이 벗겨지며 내부 개질 실리카가 재노출되는 자가재생 거동).
+R²가 높을수록 모델이 측정값을 잘 따라가고, RMSE는 측정값과 예측값의 평균 오차입니다. 외삽 구간의 띠가 급격히 넓어지는 것은 그 영역에 데이터가 없다는 뜻입니다.
+""")
 
     ms = ssum["mass"]
     if not ms.empty:
@@ -298,32 +338,19 @@ elif page == "② 기존 실험 결과":
         fig.add_scatter(x=ms["abrasion_cycles"], y=ms["coated_loss_pct"], mode="lines+markers", name="코팅", line=dict(color=COLOR["coat"]))
         fig.add_scatter(x=ms["abrasion_cycles"], y=ms["uncoated_loss_pct"], mode="lines+markers", name="미코팅", line=dict(color=COLOR["unc"], dash="dot"))
         fig.add_hline(y=0, line_color="gray", line_width=1)
-        fig.update_layout(xaxis_title="마모 횟수 (cycle)", yaxis_title="질량 감소율 (%, 0회 대비)", height=320)
+        fig.update_layout(xaxis_title="마모 횟수 (cycle)", yaxis_title="질량 감소율 (%, 0회 대비)", height=300)
         st.plotly_chart(fig, use_container_width=True)
         st.caption("양수 = 질량 감소(마모). 200회에서 두 시편 모두 질량이 늘어난 것은 측정 전 수분·사포 가루 등 외부 요인 가능성 — 팀 확인 필요.")
-
-    with st.expander("세션 측정값 표 (평균·표준편차·n·μ)"):
-        st.dataframe(series.drop(columns=["estimated_from_graph"]).round(3), hide_index=True, use_container_width=True)
-
-    pend = ssum.get("pending")
-    if pend is not None and not pend.empty:
-        st.subheader("조건 확인 대기 중인 원자료")
-        st.dataframe(pend.round(1), hide_index=True)
-
-    st.subheader("값별 검증 결과")
-    with st.expander("🔍 이 표는 무엇인가요? (검증기 규칙 설명)"):
-        explain_validator()
-    finding_table(report, show_info=True)
 
     st.subheader("다음 실험에서 개선할 점")
     for n_ in ssum["notes"]:
         st.markdown(f"- {n_}")
 
 
-# ================================================================== ③ AI 최적화
-elif page == "③ AI 실험 최적화":
-    st.title("③ AI 실험 최적화")
-    st.markdown("실험 횟수가 제한된 재료 최적화에서 **다음에 어떤 배합을 시험해야 할지** AI가 후보를 제안합니다.")
+# ================================================================== 3 · AI 최적화 데모
+elif page == "3 · AI 최적화 데모":
+    st.title("3 · AI 최적화 데모 — 다음 시험 조건 탐색")
+    st.markdown("실험 횟수가 제한된 재료 최적화에서 **다음에 어떤 배합·공정 조건을 시험해야 할지** 최적화 모델이 후보를 탐색하는 과정을 보여줍니다.")
 
     with st.expander("🧠 AI는 어떻게 추천하나요? (Gaussian Process · UCB)", expanded=False):
         e1, e2, e3 = st.columns(3)
@@ -435,6 +462,109 @@ elif page == "③ AI 실험 최적화":
         st.plotly_chart(fig, use_container_width=True)
 
 
+# ================================================================== 4 · 안전관리 시나리오
+elif page == "4 · 안전관리 시나리오":
+    st.title("4 · 안전관리 시나리오 — 검증된 조건 vs 실제 적용 대상")
+    st.caption("실험으로 검증된 시험 조건과 실제 적용 대상의 차이를 비교해, 지금 데이터로 안내할 수 있는지 아니면 추가 검증이 필요한지 판정합니다. 연령은 안내 방식만 바꾸고 화학 배합은 바꾸지 않습니다.")
+    with st.expander("✅ 지금까지 검증된 시험 조건", expanded=False):
+        st.dataframe(pd.DataFrame({
+            "항목": ["기재(밑창 재질)", "바닥재", "수막 조건", "마모 방식", "측정 지표", "배합"],
+            "검증된 조건": ["고무 아웃솔(러닝화), 고무판", "타일", "건조 / 분무 습윤", "사포 0~200회", "정마찰 μs(경사판), 동마찰 μk(경사판 동적), 접촉각", "500/50 nm 실리카 1:3, HDTMS 10 wt%, 실리카:PU 1:1, 브러시 2회, 70 °C 경화"],
+            "검증되지 않은 것": ["EVA, TPU, 크록스형 발포 수지", "세제·유분 바닥, 금속 바닥", "세제 수막, 유분 수막", "실제 보행 마모, 굽힘 피로", "장기 내구(수개월), 마찰시험기 DCOF", "다른 배합"],
+        }), hide_index=True, use_container_width=True)
+
+    if "profile" not in st.session_state:
+        st.session_state.profile = sc.SCENARIOS["A — 어린이 운동화"].model_dump()
+    bcols = st.columns(3)
+    for i, (name, prof) in enumerate(sc.SCENARIOS.items()):
+        if bcols[i].button(f"시나리오 {name} 불러오기", use_container_width=True):
+            st.session_state.profile = prof.model_dump()
+    p = st.session_state.profile
+
+    with st.form("safety_form"):
+        c = st.columns(5)
+        age = c[0].selectbox("연령대", list(AGE), index=list(AGE).index(p["age_group"]), format_func=AGE.get)
+        mat = c[1].selectbox("밑창 재질", list(MAT), index=list(MAT).index(p["sole_material"]), format_func=MAT.get)
+        shoe = c[2].selectbox("신발 종류", list(SHOE), index=list(SHOE).index(p["shoe_type"]), format_func=SHOE.get)
+        env = c[3].selectbox("사용 환경", list(ENV), index=list(ENV).index(p["environment"]), format_func=ENV.get)
+        wear = c[4].selectbox("마모 상태", list(WEAR), index=list(WEAR).index(p["wear_state"]), format_func=WEAR.get)
+        run = st.form_submit_button("판정", type="primary")
+    if run:
+        st.session_state.profile = dict(age_group=age, sole_material=mat, shoe_type=shoe, environment=env, wear_state=wear)
+        p = st.session_state.profile
+
+    prof = SafetyProfile(**p)
+    res = sc.assess_safety(prof, evidence=kpi)
+    color = LEVEL_COLOR[res.level]
+    st.markdown(f"""<div style="border-left:8px solid {color};padding:12px 16px;background:{color}22;border-radius:6px">
+<h3 style="margin:0;color:{color}">{res.level_label}</h3>
+<p style="margin:4px 0 0 0">{' · '.join(res.reasons)}</p></div>""", unsafe_allow_html=True)
+    st.write("")
+    a, b = st.columns(2)
+    with a:
+        st.markdown("**점검 방법**")
+        st.markdown(f"- 점검 주체: **{res.inspector}**\n- {res.inspection_path}")
+        st.markdown("**주의 사항**")
+        for cau in res.cautions:
+            st.markdown(f"- {cau}")
+        if not res.restorable:
+            st.error("심하게 닳은 밑창은 코팅으로 복원할 수 없습니다. 교체를 권장합니다.")
+    with b:
+        st.markdown("**근거 실측값 (고무 아웃솔, 팀 확정 통합본)**")
+        st.dataframe(pd.DataFrame({
+            "지표": ["접촉각", "습윤 μs (0회)", f"습윤 μs ({kpi.get('max_cycles', 200)}회 마모)", "건조 μs (0회)", f"건조 μs ({kpi.get('max_cycles', 200)}회 마모)", "동마찰 μk 경사각 평균 (0회 → 최대)"],
+            "값": [f"{kpi.get('contact_angle_coated')}°", kpi.get("mu_wet_0"), kpi.get("mu_wet_max"), kpi.get("mu_dry_0"), kpi.get("mu_dry_max"), f"{kpi.get('dcof_coated_0', '—')} → {kpi.get('dcof_coated_max', '—')}"],
+        }), hide_index=True, use_container_width=True)
+        if res.extra_tests:
+            st.markdown("**추천 전에 필요한 추가 시험**")
+            for t in res.extra_tests:
+                st.markdown(f"- [ ] {t}")
+        else:
+            st.markdown("**추가 시험**: 없음 (검증 범위 내)")
+        st.caption(f"배합 변경: {'있음' if res.formulation_change else '없음 — 연령은 안내 방식만 바꿉니다'}")
+
+
+
+
+# ================================================================== 5 · 사회적 파급효과
+elif page == "5 · 사회적 파급효과":
+    st.title("5 · 사회적 파급효과 — 어린이·고령층 밑창 점검·안전관리 서비스")
+    st.markdown("""
+넘어짐은 산업재해 사고 중 가장 많은 유형(2026년 1분기 7,216명, 26.4%)이고, 가정에서는 **어린이와 고령층**이 욕실·젖은 바닥에서 가장 자주 다칩니다.
+SoleFit의 안전관리 시나리오(4)는 코팅 제품을 파는 도구가 아니라, **"지금 신고 있는 신발의 밑창이 안전한가"를 누구나 점검할 수 있게 하는 서비스**의 출발점입니다.
+""")
+    s1, s2, s3 = st.columns(3)
+    cards = [
+        (s1, "👶", "어린이 — 보호자 중심 점검", ["운동화 밑창 마모·코팅 상태를 보호자가 주 1회 눈으로 확인", "앱 체크리스트(홈 마모 · 젖은 바닥 미끄러짐 경험 · 밑창 재질)", "어린이라는 이유로 배합을 바꾸지 않고, 안내 방식만 보호자 중심으로"]),
+        (s2, "👵", "고령층 — 복지기관 연계", ["75세 이상은 점검 결과를 보호자·노인복지관·방문요양을 통해 확인", "욕실·젖은 타일 환경은 실험 조건(타일 습윤)과 같아 현재 데이터로 안내 가능", "세제 수막 등 미검증 조건은 추가 시험 항목으로 자동 표시"]),
+        (s3, "🏭", "습윤 작업장 — 안전관리자", ["조리실·식품공장·병원·세차장 근로자 안전화를 월 1회 점검 기록", "마모 횟수별 μs·μk 추세(2)로 교체·리코팅 시점 예측", "보고서의 리코팅 구독(RaaS) 모델과 연결"]),
+    ]
+    for col, icon, title, items in cards:
+        with col:
+            st.markdown(f"""<div style="border:1px solid #D7DCE3;border-radius:10px;padding:14px 16px;height:100%;background:#F8FAFC">
+<div style="font-size:26px">{icon}</div><h4 style="margin:6px 0 8px 0">{title}</h4>
+<ul style="margin:0;padding-left:18px;line-height:1.6">{''.join(f'<li>{i}</li>' for i in items)}</ul></div>""", unsafe_allow_html=True)
+    st.write("")
+    st.subheader("서비스 흐름 (프로토타입 → 확장)")
+    f1, f2, f3, f4, f5 = st.columns(5)
+    for col, step, body in ((f1, "① 입력", "연령·재질·환경·마모 상태 (현재 앱)"), (f2, "② 판정", "검증 범위 내 / 근접 / 범위 밖 (현재 앱)"),
+                            (f3, "③ 점검 경로", "본인 · 보호자 · 복지기관 · 안전관리자 (현재 앱)"), (f4, "④ 사진 진단", "스마트폰 촬영으로 마모도 분석 (향후, 보고서 AI 비전)"),
+                            (f5, "⑤ 리코팅 연계", "수거 → 리코팅 → 재배송, D-15 알림 (향후, RaaS)")):
+        col.markdown(f"**{step}**  \n{body}")
+    st.markdown("""
+**지금 데이터로 말할 수 있는 것과 없는 것**
+
+| 말할 수 있는 것 (검증됨) | 아직 말할 수 없는 것 (추가 검증 필요) |
+| --- | --- |
+| 고무 밑창 + 타일 + 습윤 조건에서 코팅이 마모 후에도 정마찰계수를 유지·상승 | EVA·TPU·크록스형 밑창에서의 효과 |
+| 사포 200회 마모까지의 추세 | 실제 보행 수개월의 장기 내구 |
+| 어린이·고령층 모두 **점검 경로**는 지금 바로 안내 가능 | 세제·유분 수막, 금속·목재 바닥 |
+| 심하게 닳은 밑창은 코팅으로 복원되지 않는다는 안내 | 시판 안전화 DCOF와의 동일 조건 비교 |
+
+이 구분을 앱이 자동으로 표시하기 때문에, 서비스로 확장해도 **검증되지 않은 안전 보장을 하지 않는다**는 점이 사회적 신뢰의 기반이 됩니다.
+""")
+
+
 # ================================================================== 데이터 관리
 elif page == "데이터 관리":
     st.title("데이터 관리")
@@ -466,13 +596,13 @@ elif page == "데이터 관리":
                 st.session_state.dataset_version += 1
                 st.session_state.uploaded_name = up_m.name
                 st.session_state.pop("gp", None)
-                st.success(f"데이터셋 v{st.session_state.dataset_version}로 확정되었습니다. ②·③이 새 버전으로 갱신됩니다.")
+                st.success(f"데이터셋 v{st.session_state.dataset_version}로 확정되었습니다. 1·2·3 화면이 새 버전으로 갱신됩니다.")
                 st.rerun()
         else:
             st.error("오류가 있는 동안에는 확정할 수 없습니다. 표시된 행을 수정해 다시 업로드하세요.")
     else:
         st.subheader("현재 확정 데이터셋")
-        st.markdown(f"v{st.session_state.dataset_version}" + (f" · {st.session_state.uploaded_name}" if st.session_state.uploaded_name else " · 기본 (팀 엑셀 + 통합본 10/27 반입, 세션 5개)"))
+        st.markdown(f"v{st.session_state.dataset_version}" + (f" · {st.session_state.uploaded_name}" if st.session_state.uploaded_name else " · 기본 (팀 엑셀 + 통합_최종 10/28 반입, 세션 5개, 동마찰계수 포함)"))
         st.markdown("**검증 리포트 (규칙별 건수)**")
         st.dataframe(pd.DataFrame([{"규칙": k, "건수": v} for k, v in sorted(report.by_rule().items())]), hide_index=True)
         with st.expander("measurements.csv"):

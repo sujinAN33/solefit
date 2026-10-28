@@ -22,8 +22,8 @@ MEASUREMENT_COLUMNS = [
 ]
 
 SUBSTRATES = ["rubber_outsole", "rubber_plate", "eva", "tpu", "crocs_resin"]
-METRICS = ["contact_angle", "slip_angle", "static_mu", "dcof"]
-METHODS = ["dropsnake", "incline_static", "tribometer_dcof"]
+METRICS = ["contact_angle", "slip_angle", "static_mu", "dcof", "dcof_ref"]
+METHODS = ["dropsnake", "incline_static", "tribometer_dcof", "incline_dynamic"]
 CONDITIONS = ["dry", "wet", "unknown"]   # unknown = 팀원 확인 대기, 그래프·학습에서 제외 (R5 경고)
 SOURCES = ["measured", "synthetic"]
 
@@ -32,8 +32,9 @@ METHOD_METRICS = {
     "dropsnake": {"contact_angle"},
     "incline_static": {"slip_angle", "static_mu"},
     "tribometer_dcof": {"dcof"},
+    "incline_dynamic": {"dcof", "dcof_ref"},   # 경사판 동적법: 경사각 θ에서 가속도로 보정한 동마찰계수(dcof), 기준값 tanθ(dcof_ref)
 }
-METRIC_UNIT = {"contact_angle": "deg", "slip_angle": "deg", "static_mu": "mu", "dcof": "mu"}
+METRIC_UNIT = {"contact_angle": "deg", "slip_angle": "deg", "static_mu": "mu", "dcof": "mu", "dcof_ref": "mu"}
 
 
 class SafetyProfile(BaseModel):
@@ -81,6 +82,8 @@ def load_measurements(path: Path | str | None = None) -> pd.DataFrame:
     df = _read(path or DATA_DIR / "measurements.csv", MEASUREMENT_COLUMNS)
     df["note"] = df["note"].fillna("")
     df["measured_on"] = df["measured_on"].fillna("")
+    if "test_angle_deg" not in df.columns:
+        df["test_angle_deg"] = float("nan")
     df["abrasion_cycles"] = df["abrasion_cycles"].astype(int)
     df["repeat_no"] = df["repeat_no"].astype(int)
     df["n"] = df["n"].fillna(1).astype(int)
